@@ -1,0 +1,41 @@
+name: Lean verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      LEAN_NUM_THREADS: 2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: leanprover/lean-action@50fcf42d2e460296f1a34b402e990d1b24f8b596 # v1
+        with:
+          auto-config: false
+          build: true
+          test: false
+          lint: false
+          use-mathlib-cache: true
+      - name: Check source and statement boundaries
+        run: python3 scripts/check-repository.py
+      - name: Audit every project declaration and proof binding
+        run: lake env lean -Dbackward.isDefEq.respectTransparency=false scripts/axiom-audit.lean
+      - name: Elaborate the independent specification
+        run: lake build Verification.Challenge
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Install the pinned Linux sandbox
+        run: |
+          mkdir -p .verification/tools/bin
+          GOBIN="$PWD/.verification/tools/bin" go install github.com/zouuup/landrun@v0.1.14
+          echo "$PWD/.verification/tools/bin" >> "$GITHUB_PATH"
+      - name: Build the pinned Comparator and exporter
+        run: bash scripts/setup-comparator.sh
+      - name: Compare statements, audit axioms, and replay proofs
+        run: bash scripts/compare.sh
