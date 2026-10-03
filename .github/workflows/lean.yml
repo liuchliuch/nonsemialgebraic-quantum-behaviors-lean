@@ -33,7 +33,7 @@ jobs:
       - name: Install the pinned Linux sandbox
         run: |
           mkdir -p .verification/tools/bin
-          GOBIN="$PWD/.verification/tools/bin" go install github.com/zouuup/landrun@v0.1.14
+          GOBIN="$PWD/.verification/tools/bin" go install github.com/zouuup/landrun/cmd/landrun@v0.1.14
           echo "$PWD/.verification/tools/bin" >> "$GITHUB_PATH"
       - name: Build the pinned Comparator and exporter
         run: bash scripts/setup-comparator.sh
