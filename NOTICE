@@ -1,0 +1,15 @@
+Quantum Behaviors Are Not Semialgebraic — Lean formalization
+
+The project is distributed under the Apache License, Version 2.0 (see LICENSE).
+The mathematical specification is Gao–Ji–Liu, arXiv:2609.18865v1.
+The article and external publications are not redistributed here.
+
+The three adapted modules in QuantumBehaviors/Projection/Vendored originate from
+https://github.com/leanprover/hex-real-roots-mathlib
+commit 53ce31466dc5ff520463249d470119c1e0006e22.
+Copyright (c) 2026 Lean FRO, LLC. All rights reserved.
+Author: Kim Morrison. Licensed under Apache-2.0.
+Their original copyright notices remain in the source files. The adaptations
+and exact source references are documented in docs/provenance.md.
+
+Lean, Mathlib, and their dependencies retain their own licenses.

@@ -1,0 +1,11 @@
+.lake/
+.build/
+.verification/
+.DS_Store
+*.olean
+*.ilean
+*.trace
+/nonsemialgebraic-quantum-behaviors-lean-source.zip
+
+# Generated source distributions.
+/*.zip

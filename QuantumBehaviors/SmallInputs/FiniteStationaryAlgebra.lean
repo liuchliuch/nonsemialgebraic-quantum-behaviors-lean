@@ -1,0 +1,254 @@
+import QuantumBehaviors.SmallInputs.CompressedSpan
+import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
+
+/-!
+# A uniform finite-dimensional bound for the stationary three-projection algebra
+
+The argument uses twelve spanning vectors, rather than asserting the existence
+of a two-dimensional irreducible block for every choice of scalar parameters.
+-/
+
+namespace QuantumBehaviors.SmallInputs
+
+variable {K R : Type*} [Field K] [CharZero K] [Ring R] [Algebra K R]
+
+/-- Four ordered words in the first two projections. -/
+def cornerWord (A B : R) (i : Bool × Bool) : R :=
+  (if i.1 then A else 1) * (if i.2 then B else 1)
+
+def cornerSpan (A B : R) : Submodule K R := Submodule.span K (Set.range (cornerWord A B))
+
+def stationarySpan (T A B C : R) : Submodule K R :=
+  cornerSpan (K := K) A B ⊔ compressedSpan T A B C
+
+lemma cornerWord_mem (A B : R) (i : Bool × Bool) :
+    cornerWord A B i ∈ cornerSpan (K := K) A B := Submodule.subset_span ⟨i, rfl⟩
+
+lemma cornerSpan_mul_A {A B : R} (hA : IsIdempotentElem A) :
+    ∀ x ∈ cornerSpan (K := K) A B, A * x ∈ cornerSpan (K := K) A B := by
+  apply span_left_mul_closed
+  intro i
+  have he : A * cornerWord A B i = cornerWord A B (true, i.2) := by
+    rcases i with ⟨a,b⟩
+    cases a <;> cases b <;> simp [cornerWord, ← mul_assoc, hA.eq]
+  rw [he]
+  exact cornerWord_mem _ _ _
+
+lemma cornerSpan_mul_B_right {A B : R} (hB : IsIdempotentElem B) :
+    ∀ x ∈ cornerSpan (K := K) A B, x * B ∈ cornerSpan (K := K) A B := by
+  intro x hx
+  induction hx using Submodule.span_induction with
+  | mem x hx =>
+    obtain ⟨⟨a,b⟩, rfl⟩ := hx
+    have he : cornerWord A B (a,b) * B = cornerWord A B (a,true) := by
+      cases a <;> cases b <;> simp [cornerWord, mul_assoc, hB.eq]
+    rw [he]
+    exact cornerWord_mem _ _ _
+  | zero => simp
+  | add x y hx hy ihx ihy => simpa only [add_mul] using (cornerSpan (K := K) A B).add_mem ihx ihy
+  | smul c x hx ih => simpa only [smul_mul_assoc] using (cornerSpan (K := K) A B).smul_mem c ih
+
+lemma sup_left_invariant {U V : Submodule K R} {P : R}
+    (hU : ∀ x ∈ U, P * x ∈ U) (hV : ∀ x ∈ V, P * x ∈ V) :
+    ∀ x ∈ U ⊔ V, P * x ∈ U ⊔ V := by
+  intro x hx
+  obtain ⟨y, hy, z, hz, rfl⟩ := Submodule.mem_sup.mp hx
+  rw [mul_add]
+  exact (U ⊔ V).add_mem (Submodule.mem_sup_left (hU _ hy)) (Submodule.mem_sup_right (hV _ hz))
+
+lemma sup_right_invariant {U V : Submodule K R} {P : R}
+    (hU : ∀ x ∈ U, x * P ∈ U) (hV : ∀ x ∈ V, x * P ∈ V) :
+    ∀ x ∈ U ⊔ V, x * P ∈ U ⊔ V := by
+  intro x hx
+  obtain ⟨y, hy, z, hz, rfl⟩ := Submodule.mem_sup.mp hx
+  rw [add_mul]
+  exact (U ⊔ V).add_mem (Submodule.mem_sup_left (hU _ hy)) (Submodule.mem_sup_right (hV _ hz))
+
+instance cornerSpan_finiteDimensional (A B : R) : FiniteDimensional K (cornerSpan (K := K) A B) :=
+  FiniteDimensional.span_of_finite K (Set.finite_range _)
+
+instance stationarySpan_finiteDimensional (T A B C : R) :
+    FiniteDimensional K (stationarySpan (K := K) T A B C) := inferInstanceAs
+      (FiniteDimensional K ↥(cornerSpan (K := K) A B ⊔ compressedSpan (K := K) T A B C))
+
+lemma stationarySpan_finrank_le (T A B C : R) :
+    Module.finrank K (stationarySpan (K := K) T A B C) ≤ 12 := by
+  have h4 : Module.finrank K (cornerSpan (K := K) A B) ≤ 4 := by
+    simpa only [Fintype.card_prod, Fintype.card_bool] using
+      finrank_range_le_card (R := K) (cornerWord A B)
+  exact le_trans (Submodule.finrank_add_le_finrank_add_finrank _ _)
+    (by have := compressedSpan_finrank_le (K := K) T A B C; omega)
+
+/-- All commutators are killed by the same central factor. -/
+lemma central_factor_relations {u v w : K} {A B C S : R}
+    (hu : u ≠ 0) (hv : v ≠ 0) (hw : w ≠ 0)
+    (hA : IsIdempotentElem A) (hB : IsIdempotentElem B) (hC : IsIdempotentElem C)
+    (hs : weightedSum u v w A B C = S)
+    (hAS : Commute A S) (hBS : Commute B S) (hCS : Commute C S) :
+    let T := (2 : K) • S - (u + v + w) • (1 : R)
+    (∀ P ∈ ({A, B, C} : Set R), Commute T P) ∧
+      T * (B * A) = T * (A * B) ∧ T * (C * A) = T * (A * C) ∧
+      T * (C * B) = T * (B * C) := by
+  dsimp only
+  have hAB := weighted_commutator_support hv hA hB hC hs hAS hBS
+  have hsAC : weightedSum u w v A C B = S := by rw [← hs]; unfold weightedSum; module
+  have hAC := weighted_commutator_support hw hA hC hB hsAC hAS hCS
+  have hsBC : weightedSum v w u B C A = S := by rw [← hs]; unfold weightedSum; module
+  have hBC := weighted_commutator_support hw hB hC hA hsBC hBS hCS
+  have hsumAC : u + w + v = u + v + w := by ring
+  have hsumBC : v + w + u = u + v + w := by ring
+  rw [hsumAC] at hAC
+  rw [hsumBC] at hBC
+  simp only [mul_sub, sub_eq_zero] at hAB hAC hBC
+  refine ⟨?_, hAB.symm, hAC.symm, hBC.symm⟩
+  intro P hP
+  have hPS : Commute P S := by
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hP
+    rcases hP with rfl | rfl | rfl
+    · exact hAS
+    · exact hBS
+    · exact hCS
+  exact (hPS.symm.smul_left (2 : K)).sub_left ((Commute.one_left P).smul_left (u + v + w))
+
+/-- The genuine algebra generated by a stationary nondegenerate weighted triple
+is contained in the explicit twelve-dimensional span. -/
+theorem stationary_adjoin_le_span {u v w : K} {A B C S : R}
+    (hu : u ≠ 0) (hv : v ≠ 0) (hw : w ≠ 0)
+    (hA : IsIdempotentElem A) (hB : IsIdempotentElem B) (hC : IsIdempotentElem C)
+    (hs : weightedSum u v w A B C = S)
+    (hAS : Commute A S) (hBS : Commute B S) (hCS : Commute C S) :
+    (Algebra.adjoin K ({A, B, C} : Set R)).toSubmodule ≤
+      stationarySpan ((2 : K) • S - (u + v + w) • (1 : R)) A B C := by
+  let T := (2 : K) • S - (u + v + w) • (1 : R)
+  let U := compressedSpan (K := K) T A B C
+  let V := stationarySpan (K := K) T A B C
+  obtain ⟨hcomm, hBA, hCA, hCB⟩ := central_factor_relations hu hv hw hA hB hC hs hAS hBS hCS
+  change (∀ P ∈ ({A, B, C} : Set R), Commute T P) at hcomm
+  have hTA := hcomm A (by simp)
+  have hTB := hcomm B (by simp)
+  have hTC := hcomm C (by simp)
+  have hleft : ∀ P ∈ ({A, B, C} : Set R), ∀ x ∈ U, P * x ∈ U := by
+    intro P hP
+    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hP
+    rcases hP with rfl | rfl | rfl
+    · exact compressedSpan_mul_A hTA hA
+    · exact compressedSpan_mul_B hTB hB hBA
+    · exact compressedSpan_mul_C hTA hTC hC hCA hCB
+  have hright := compressedSpan_right_invariant hcomm hleft
+  have hU : U ≤ V := le_sup_right
+  have hcorner : cornerSpan (K := K) A B ≤ V := le_sup_left
+  have h1 : (1 : R) ∈ V := hcorner (by simpa [cornerWord] using cornerWord_mem (K := K) A B (false,false))
+  have hAmem : A ∈ V := hcorner (by simpa [cornerWord] using cornerWord_mem (K := K) A B (true,false))
+  have hBmem : B ∈ V := hcorner (by simpa [cornerWord] using cornerWord_mem (K := K) A B (false,true))
+  have hABmem : A * B ∈ V := hcorner (by simpa [cornerWord] using cornerWord_mem (K := K) A B (true,true))
+  have hT : T ∈ U := by
+    simpa [booleanWord] using compressedWord_mem (K := K) T A B C (false,false,false)
+  have hAadj : A ∈ Algebra.adjoin K ({A,B,C} : Set R) := Algebra.subset_adjoin (by simp)
+  have hBadj : B ∈ Algebra.adjoin K ({A,B,C} : Set R) := Algebra.subset_adjoin (by simp)
+  have hCadj : C ∈ Algebra.adjoin K ({A,B,C} : Set R) := Algebra.subset_adjoin (by simp)
+  have hSadj : S ∈ Algebra.adjoin K ({A,B,C} : Set R) := by
+    rw [← hs, weightedSum]
+    exact Subalgebra.add_mem _ (Subalgebra.add_mem _ (Subalgebra.smul_mem _ hAadj u)
+      (Subalgebra.smul_mem _ hBadj v)) (Subalgebra.smul_mem _ hCadj w)
+  have hTadj : T ∈ Algebra.adjoin K ({A,B,C} : Set R) := by
+    exact Subalgebra.sub_mem _ (Subalgebra.smul_mem _ hSadj (2 : K))
+      (Subalgebra.smul_mem _ (Subalgebra.one_mem _) (u + v + w))
+  have hTleft : ∀ x ∈ V, T * x ∈ V := by
+    intro x hx
+    obtain ⟨y, hy, z, hz, rfl⟩ := Submodule.mem_sup.mp hx
+    rw [mul_add]
+    apply V.add_mem
+    · apply hU
+      apply span_left_mul_closed (K := K) (V := U) (cornerWord A B) T ?_ y hy
+      intro i
+      have he : T * cornerWord A B i = T * booleanWord A B C (i.1,i.2,false) := by simp [cornerWord, booleanWord]
+      rw [he]
+      exact compressedWord_mem _ _ _ _ _
+    · exact hU (adjoin_left_invariant hleft T hTadj z hz)
+  have hSexpression : S = (1 / 2 : K) • T + ((u + v + w) / 2) • (1 : R) := by dsimp [T]; module
+  have hSleft : ∀ x ∈ V, S * x ∈ V := by
+    intro x hx
+    rw [hSexpression, add_mul, smul_mul_assoc, smul_mul_assoc, one_mul]
+    exact V.add_mem (V.smul_mem _ (hTleft _ hx)) (V.smul_mem _ hx)
+  have hSmem : S ∈ V := by simpa only [mul_one] using hSleft 1 h1
+  have hBAmem : B * A ∈ V := by
+    have hanti := weighted_anticommutator hA hB hC hs hAS hBS
+    have hm : (u * v) • (A * B + B * A) ∈ V := by
+      rw [hanti]
+      exact V.add_mem (V.add_mem (V.add_mem (V.neg_mem (hSleft _ hSmem)) (V.smul_mem _ hSmem))
+        (V.smul_mem _ (V.sub_mem (V.smul_mem _ (hSleft _ hAmem)) (V.smul_mem _ hAmem))))
+        (V.smul_mem _ (V.sub_mem (V.smul_mem _ (hSleft _ hBmem)) (V.smul_mem _ hBmem)))
+    have hm' := V.smul_mem ((u * v)⁻¹) hm
+    simp only [smul_smul, inv_mul_cancel₀ (mul_ne_zero hu hv), one_smul] at hm'
+    have := V.sub_mem hm' hABmem
+    simpa only [add_sub_cancel_left] using this
+  have hBVright : ∀ x ∈ V, x * B ∈ V :=
+    sup_right_invariant (cornerSpan_mul_B_right hB) (hright B hBadj)
+  have hAVleft : ∀ x ∈ V, A * x ∈ V :=
+    sup_left_invariant (cornerSpan_mul_A hA) (hleft A (by simp))
+  have hBVleft : ∀ x ∈ V, B * x ∈ V := by
+    intro x hx
+    obtain ⟨y, hy, z, hz, rfl⟩ := Submodule.mem_sup.mp hx
+    rw [mul_add]
+    apply V.add_mem
+    · apply span_left_mul_closed (K := K) (V := V) (cornerWord A B) B ?_ y hy
+      rintro ⟨a,b⟩
+      cases a <;> cases b
+      · simpa [cornerWord] using hBmem
+      · simpa [cornerWord, hB.eq] using hBmem
+      · simpa [cornerWord] using hBAmem
+      · simpa only [cornerWord, ↓reduceIte, mul_assoc] using hBVright _ hBAmem
+    · exact hU (hleft B (by simp) z hz)
+  have hCVleft : ∀ x ∈ V, C * x ∈ V := by
+    intro x hx
+    have he : w • (C * x) = S * x - u • (A * x) - v • (B * x) := by
+      rw [← hs, weightedSum]
+      simp only [add_mul, smul_mul_assoc]
+      module
+    have hm : w • (C * x) ∈ V := by
+      rw [he]
+      exact V.sub_mem (V.sub_mem (hSleft _ hx) (V.smul_mem _ (hAVleft _ hx)))
+        (V.smul_mem _ (hBVleft _ hx))
+    have hm' := V.smul_mem w⁻¹ hm
+    simpa only [smul_smul, inv_mul_cancel₀ hw, one_smul] using hm'
+  apply adjoin_le_of_left_invariant h1
+  intro P hP
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hP
+  rcases hP with rfl | rfl | rfl
+  · exact hAVleft
+  · exact hBVleft
+  · exact hCVleft
+
+/-- Uniform finite-dimensionality, with no irreducible-block classification assumed. -/
+theorem stationary_adjoin_finiteDimensional {u v w : K} {A B C S : R}
+    (hu : u ≠ 0) (hv : v ≠ 0) (hw : w ≠ 0)
+    (hA : IsIdempotentElem A) (hB : IsIdempotentElem B) (hC : IsIdempotentElem C)
+    (hs : weightedSum u v w A B C = S)
+    (hAS : Commute A S) (hBS : Commute B S) (hCS : Commute C S) :
+    FiniteDimensional K (Algebra.adjoin K ({A, B, C} : Set R)) :=
+  Submodule.finiteDimensional_of_le
+    (stationary_adjoin_le_span hu hv hw hA hB hC hs hAS hBS hCS)
+
+theorem stationary_adjoin_finrank_le {u v w : K} {A B C S : R}
+    (hu : u ≠ 0) (hv : v ≠ 0) (hw : w ≠ 0)
+    (hA : IsIdempotentElem A) (hB : IsIdempotentElem B) (hC : IsIdempotentElem C)
+    (hs : weightedSum u v w A B C = S)
+    (hAS : Commute A S) (hBS : Commute B S) (hCS : Commute C S) :
+    Module.finrank K (Algebra.adjoin K ({A, B, C} : Set R)) ≤ 12 :=
+  (Submodule.finrank_mono
+    (stationary_adjoin_le_span hu hv hw hA hB hC hs hAS hBS hCS)).trans
+      (stationarySpan_finrank_le _ _ _ _)
+
+/-- The valid conclusion needed from Russell 4.7, now proved directly.
+The generated algebra has dimension at most twelve; a matrix summand is not asserted. -/
+theorem russell_adjoin_finiteDimensional {a b : K} {A B C : R}
+    (ha : a ≠ 0) (hb : b ≠ 0)
+    (hA : IsIdempotentElem A) (hB : IsIdempotentElem B) (hC : IsIdempotentElem C)
+    (h₁ : Commute A (a • B + b • C)) (h₂ : Commute B (a • A + C)) :
+    FiniteDimensional K (Algebra.adjoin K ({A, B, C} : Set R)) ∧
+      Module.finrank K (Algebra.adjoin K ({A, B, C} : Set R)) ≤ 12 := by
+  obtain ⟨hAS, hBS, hCS⟩ := russell_sum_central hb h₁ h₂
+  exact ⟨stationary_adjoin_finiteDimensional (mul_ne_zero ha hb) ha hb hA hB hC rfl hAS hBS hCS,
+    stationary_adjoin_finrank_le (mul_ne_zero ha hb) ha hb hA hB hC rfl hAS hBS hCS⟩
+
+end QuantumBehaviors.SmallInputs
