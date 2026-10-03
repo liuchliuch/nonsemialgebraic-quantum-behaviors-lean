@@ -47,7 +47,7 @@ at the toolchain-matched revision, with its pinned exporter and checker dependen
 
 ```sh
 bash scripts/setup-comparator.sh
-go install github.com/zouuup/landrun@v0.1.14  # Linux; requires Go
+go install github.com/zouuup/landrun/cmd/landrun@v0.1.14  # Linux; requires Go
 export PATH="$(go env GOPATH)/bin:$PATH"
 bash scripts/compare.sh
 ```
