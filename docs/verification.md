@@ -73,6 +73,9 @@ source search for `sorry`. It does not determine whether the specification corre
 expresses the informal paper.
 
 Real [landrun](https://github.com/Zouuup/landrun) supplies the Linux sandbox.
+The Linux runner gives the system ELF interpreter read/execute access because
+Landrun v0.1.14's `ldd` parser omits that entry. Comparator's remaining filesystem
+and network restrictions are retained.
 The explicit `--local` option supplies a temporary development runner without a
 sandbox. A successful macOS replay
 therefore verifies statement equality, axioms and kernel acceptance; it does **not**

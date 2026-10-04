@@ -28,6 +28,23 @@ exit 2
 RUNNER
   chmod +x "$runner_dir/landrun"
   export PATH="$runner_dir:$PATH"
+elif [[ "$(uname -s)" == "Linux" ]]; then
+  # Landrun v0.1.14's ldd parser omits the ELF interpreter. Give the
+  # system loader read/execute access while retaining Comparator's sandbox rules.
+  real_landrun="$(command -v landrun)"
+  runner_dir="$(mktemp -d)"
+  trap 'rm -rf "$runner_dir"' EXIT
+  {
+    printf '#!/usr/bin/env bash\nset -euo pipefail\nexec %q' "$real_landrun"
+    for loader in /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-aarch64.so.1; do
+      if [[ -f "$loader" ]]; then
+        printf ' --rox %q' "$loader"
+      fi
+    done
+    printf ' "$@"\n'
+  } > "$runner_dir/landrun"
+  chmod +x "$runner_dir/landrun"
+  export PATH="$runner_dir:$PATH"
 fi
 for tool in comparator lean4export landrun; do
   command -v "$tool" >/dev/null || { echo "Missing $tool; see docs/verification.md" >&2; exit 1; }
